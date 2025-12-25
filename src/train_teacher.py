@@ -1,4 +1,7 @@
 import os
+import time
+import json
+import shutil
 import torch
 import random
 import torch.nn as nn
@@ -60,7 +63,6 @@ def train_teacher():
     print(f"Dataset Split:")
     print(f"  Train: {len(train_dataset)}")
     print(f"  Val:   {len(val_dataset)} (from Test set)")
-    print(f"  Test:  {len(test_dataset)} (from Test set)")
 
     img, density_map = train_dataset[random.randint(0, len(train_dataset)-1)]
     visualize_sample(img, density_map)
@@ -74,18 +76,9 @@ def train_teacher():
     
     # 4. Optimizer & Loss
     # Baseline Configuration (CSRNet Paper):
-    # - Optimizer: SGD
-    # - Learning Rate: 1e-6 (fixed)
-    # - Momentum: 0.95
-    # - Weight Decay: 5e-4
-    # For actual training, we start with 1e-5 and decay it to ensure convergence.
     optimizer = optim.SGD(model.parameters(), lr=Config.LR, momentum=0.95, weight_decay=5e-4)
     
-    # Scheduler: Decay LR by 0.5 every 50 epochs
-    # Epoch 0-50: 1e-5
-    # Epoch 50-100: 5e-6
-    # Epoch 100-150: 2.5e-6
-    # Epoch 150-200: 1.25e-6 (Close to paper's 1e-6)
+    # Scheduler: Disabled for baseline
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
     
     criterion = nn.MSELoss(size_average=False).to(device) # Sum of squared errors
@@ -93,8 +86,11 @@ def train_teacher():
     # 5. Training Loop
     best_mae = float('inf')
     save_dir = "./checkpoints"
+    exp_dir = os.path.join("./exp", "teacher", time.strftime("%m%d_%H%M", time.localtime()))
     os.makedirs(save_dir, exist_ok=True)
-    
+    os.makedirs(exp_dir, exist_ok=True)
+    print(f"Result will be saved to: {exp_dir}")
+
     # History tracking
     history = {
         'train_loss': [], 
@@ -214,8 +210,14 @@ def train_teacher():
 
     # Save final model
     torch.save(model.state_dict(), os.path.join(save_dir, "teacher_final.pth"))
-    
-    visualize_loss_curve(history, save_path="teacher_loss_curve.png")
+
+    # Save best weight and loss curve to exp dir
+    shutil.copy(os.path.join(save_dir, 'teacher_best.pth'), exp_dir)
+    print(f"Saved {os.path.join(exp_dir, 'teacher_best.pth')}")
+    visualize_loss_curve(history, save_path=os.path.join(exp_dir, "teacher_loss_curve.png"))
+    with open(os.path.join(exp_dir, "history.json"), 'w') as f:
+        json.dump(history, f)
+    print("Training Complete.")
 
     
 if __name__ == "__main__":

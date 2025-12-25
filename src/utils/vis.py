@@ -57,3 +57,27 @@ def visualize_loss_curve(history, save_path="loss_curve.png"):
     plt.tight_layout()
     plt.savefig(save_path)
     print(f"Saved {save_path}")
+
+def visualize_prediction(img, gt_density, pred_density, save_path="prediction_visualization.png"):
+    plt.figure(figsize=(15, 5))
+    
+    # Input Image
+    plt.subplot(1, 3, 1)
+    plt.imshow(img)
+    plt.title(f"Input Image (Count: {gt_density.sum().item():.2f})")
+    plt.axis('off')
+        
+    # Downsampled GT
+    plt.subplot(1, 3, 2)
+    plt.imshow(gt_density, cmap='jet')
+    plt.title(f"Training Target (1/8 Scale)")
+    plt.axis('off')
+    
+    # Prediction
+    plt.subplot(1, 3, 3)
+    plt.imshow(pred_density, cmap='jet')
+    plt.title(f"Prediction (Count: {pred_density.sum().item():.2f})")
+    plt.axis('off')
+    
+    plt.savefig(save_path)
+    print(f"Result saved to {save_path}")

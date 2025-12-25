@@ -6,7 +6,7 @@ class Config:
     # Dataset
     DATASET_PATH = "data/shanghaitech_with_people_density_map/ShanghaiTech/part_B"
     INPUT_SIZE = (512, 512) # Example fixed size for training, or None for variable
-    BATCH_SIZE = 8
+    BATCH_SIZE = 1
     NUM_WORKERS = 4
     
     # Model
