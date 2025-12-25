@@ -24,25 +24,26 @@ class CrowdResNet18(nn.Module):
 
         # Backend to generate density map
         # Layer3 output has 256 channels
-        self.backend = nn.Sequential(
+        self.backend_features = nn.Sequential(
             nn.Conv2d(256, 256, kernel_size=3, padding=2, dilation=2),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 128, kernel_size=3, padding=2, dilation=2),
             nn.ReLU(inplace=True),
             nn.Conv2d(128, 64, kernel_size=3, padding=2, dilation=2),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 1, kernel_size=1) # density map output
+            nn.ReLU(inplace=True)
         )
+        self.output_layer = nn.Conv2d(64, 1, kernel_size=1) # density map output
         
         self._init_weights()
 
     def forward(self, x):
-        features = self.frontend(x)
-        out = self.backend(features)
-        return out, features
+        frontend_feat = self.frontend(x)
+        backend_feat = self.backend_features(frontend_feat)
+        out = self.output_layer(backend_feat)
+        return out, [frontend_feat, backend_feat]
 
     def _init_weights(self):
-        for m in self.backend.modules():
+        for m in self.backend_features.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, std=0.01)
                 if m.bias is not None:
@@ -50,3 +51,6 @@ class CrowdResNet18(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+        nn.init.normal_(self.output_layer.weight, std=0.01)
+        if self.output_layer.bias is not None:
+            nn.init.constant_(self.output_layer.bias, 0)

@@ -7,6 +7,7 @@ import numpy as np
 import h5py
 import cv2
 from torchvision import transforms
+from config import Config
 
 class ShanghaiTechDataset(Dataset):
     """
@@ -21,6 +22,7 @@ class ShanghaiTechDataset(Dataset):
             fixed_size (tuple, optional): (H, W) to resize input images. If None, use original size.
             augment (bool): Whether to apply data augmentation (Random Crop, Flip).
         """
+        random.seed(Config.RANDOM_SEED)
         self.root_path = root_path
         self.phase = phase
         self.main_transform = main_transform

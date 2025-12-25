@@ -30,12 +30,11 @@ class CSRNet(nn.Module):
             self.frontend.load_state_dict(frontend_dict)
 
     def forward(self, x):
-        x = self.frontend(x)
+        frontend_feat = self.frontend(x)
+        backend_feat = self.backend(frontend_feat)
+        x = self.output_layer(backend_feat)
         # Return features for distillation (output of frontend/VGG16 backend)
-        features = x 
-        x = self.backend(x)
-        x = self.output_layer(x)
-        return x, features
+        return x, [frontend_feat, backend_feat]
 
     def _initialize_weights(self):
         for m in self.modules():

@@ -19,7 +19,7 @@ from config import Config
 from utils.vis import visualize_sample, visualize_loss_curve
 from utils.utils import adjust_target_size
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 def train_student(distill=False):
     if distill:
@@ -60,7 +60,7 @@ def train_student(distill=False):
     val_dataset, test_dataset = random_split(
         full_test_dataset, 
         [val_size, real_test_size],
-        generator=torch.Generator().manual_seed(42)
+        generator=torch.Generator().manual_seed(Config.RANDOM_SEED)
     )
 
     print(f"Dataset Split:")
@@ -89,21 +89,29 @@ def train_student(distill=False):
         student = CrowdResNet18()
         target_student = student
         
-        # C. Connector (Student: 256 channels -> Teacher: 512 channels)
-        # ResNet18 Layer3 output has 256 channels
-        # CSRNet Frontend (VGG16) output has 512 channels
-        connector = FeatureConnector(student_channels=256, teacher_channels=512)
+        # C. Connectors
+        # 1. Frontend: Student 256 -> Teacher 512
+        # 2. Backend: Student 64 -> Teacher 64
+        connectors = nn.ModuleList([
+            FeatureConnector(student_channels=256, teacher_channels=512),
+            FeatureConnector(student_channels=64, teacher_channels=64)
+        ])
         
         # D. Distiller
-        model = DistillationModel(teacher, student, connector).to(device)
+        model = DistillationModel(teacher, student, connectors).to(device)
 
     # 4. Optimizer
-    #optimizer = optim.SGD([
-    #    {'params': student.frontend.parameters(), 'lr': Config.STUDENT_LR},
-    #    {'params': student.backend.parameters(), 'lr': Config.STUDENT_LR * 10},
-    #    {'params': connector.parameters(), 'lr': Config.STUDENT_LR * 10}
-    #], lr=Config.STUDENT_LR, momentum=0.95, weight_decay=5e-4)
-    optimizer = optim.SGD(model.parameters(), lr=Config.STUDENT_LR, momentum=0.95, weight_decay=5e-4)
+    # Differential Learning Rates
+    params = [
+        {'params': target_student.frontend.parameters(), 'lr': Config.STUDENT_LR},
+        {'params': target_student.backend_features.parameters(), 'lr': Config.STUDENT_LR * 10},
+        {'params': target_student.output_layer.parameters(), 'lr': Config.STUDENT_LR * 10}
+    ]
+    
+    if distill:
+        params.append({'params': model.connectors.parameters(), 'lr': Config.STUDENT_LR * 10})
+
+    optimizer = optim.SGD(params, lr=Config.STUDENT_LR, momentum=0.95, weight_decay=5e-4)
 
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.5)
 

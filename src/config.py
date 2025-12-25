@@ -14,7 +14,7 @@ class Config:
     STUDENT_MODEL = "CrowdResNet18"
     
     # Distillation
-    DISTILLATION_LAMBDA = 0.5 # Weight for feature loss
+    DISTILLATION_LAMBDA = 100 # Weight for feature loss
     TEACHER_CHANNELS = 512 # VGG16 backend channels
     STUDENT_CHANNELS = 256  # ResNet18 layer3 output channels
     
@@ -23,3 +23,5 @@ class Config:
     STUDENT_LR = 1e-4
     EPOCHS = 120
     DEVICE = "cuda"
+
+    RANDOM_SEED = 1234

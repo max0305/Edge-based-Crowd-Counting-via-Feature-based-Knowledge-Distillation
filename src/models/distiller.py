@@ -23,11 +23,11 @@ class FeatureConnector(nn.Module):
         return x
 
 class DistillationModel(nn.Module):
-    def __init__(self, teacher, student, connector):
+    def __init__(self, teacher, student, connectors):
         super(DistillationModel, self).__init__()
         self.teacher = teacher
         self.student = student
-        self.connector = connector
+        self.connectors = connectors # Should be nn.ModuleList
         
         # Freeze teacher
         for param in self.teacher.parameters():
@@ -52,16 +52,24 @@ class DistillationModel(nn.Module):
         student_output, student_features = self.student(x)
         
         # Project student features
-        projected_student_features = self.connector(student_features, teacher_features.shape[2:])
+        projected_features = []
+        for i, connector in enumerate(self.connectors):
+            # teacher_features is a list now
+            proj = connector(student_features[i], teacher_features[i].shape[2:])
+            projected_features.append(proj)
         
-        return student_output, projected_student_features, teacher_features
+        return student_output, projected_features, teacher_features
 
 def distillation_loss(student_output, target, projected_features, teacher_features, lambda_kd=0.1):
     # Task Loss (MSE between Student Output and Ground Truth)
     task_loss = nn.MSELoss(reduction='sum')(student_output, target)
     
     # Distillation Loss (MSE between Projected Student Features and Teacher Features)
-    dist_loss = nn.MSELoss()(projected_features, teacher_features)
+    dist_loss = 0.0
+    for proj, teacher in zip(projected_features, teacher_features):
+        dist_loss += nn.MSELoss()(proj, teacher)
     
-    total_loss = (1 - lambda_kd) * task_loss + lambda_kd * dist_loss
+    # Use additive combination: Task + Lambda * Dist
+    # This matches Config.DISTILLATION_LAMBDA = 100.0
+    total_loss = task_loss + lambda_kd * dist_loss
     return total_loss, task_loss, dist_loss
