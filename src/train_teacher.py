@@ -76,7 +76,7 @@ def train_teacher():
     
     # 4. Optimizer & Loss
     # Baseline Configuration (CSRNet Paper):
-    optimizer = optim.SGD(model.parameters(), lr=Config.LR, momentum=0.95, weight_decay=5e-4)
+    optimizer = optim.SGD(model.parameters(), lr=Config.TEACHER_LR, momentum=0.95, weight_decay=5e-4)
     
     # Scheduler: Disabled for baseline
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
@@ -203,10 +203,7 @@ def train_teacher():
             torch.save(model.state_dict(), save_path)
             print(f"New Best MAE: {best_mae:.4f}. Saved to {save_path}")
 
-        # Save checkpoint every 10 epochs
-        if (epoch + 1) % 10 == 0:
-            save_path = os.path.join(save_dir, f"teacher_epoch_{epoch+1}.pth")
-            torch.save(model.state_dict(), save_path)
+        visualize_loss_curve(history, save_path=os.path.join(exp_dir, "teacher_loss_curve.png"), print_path=False)
 
     # Save final model
     torch.save(model.state_dict(), os.path.join(save_dir, "teacher_final.pth"))
@@ -214,7 +211,6 @@ def train_teacher():
     # Save best weight and loss curve to exp dir
     shutil.copy(os.path.join(save_dir, 'teacher_best.pth'), exp_dir)
     print(f"Saved {os.path.join(exp_dir, 'teacher_best.pth')}")
-    visualize_loss_curve(history, save_path=os.path.join(exp_dir, "teacher_loss_curve.png"))
     with open(os.path.join(exp_dir, "history.json"), 'w') as f:
         json.dump(history, f)
     print("Training Complete.")

@@ -24,7 +24,7 @@ def visualize_sample(img, density_map, save_path="sample_visualization.png"):
     print(f"Saved {save_path}")
 
 
-def visualize_loss_curve(history, save_path="loss_curve.png"):
+def visualize_loss_curve(history, save_path="loss_curve.png", print_path=True):
     # Plot History
     plt.figure(figsize=(15, 5))
     
@@ -56,7 +56,9 @@ def visualize_loss_curve(history, save_path="loss_curve.png"):
     
     plt.tight_layout()
     plt.savefig(save_path)
-    print(f"Saved {save_path}")
+    plt.close()
+    if print_path:
+        print(f"Saved {save_path}")
 
 def visualize_prediction(img, gt_density, pred_density, save_path="prediction_visualization.png"):
     plt.figure(figsize=(15, 5))
@@ -80,4 +82,5 @@ def visualize_prediction(img, gt_density, pred_density, save_path="prediction_vi
     plt.axis('off')
     
     plt.savefig(save_path)
+    plt.close()
     print(f"Result saved to {save_path}")

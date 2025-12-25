@@ -18,7 +18,7 @@ class FeatureConnector(nn.Module):
         
         # If spatial dimensions don't match, interpolate
         if teacher_spatial_size is not None and x.shape[2:] != teacher_spatial_size:
-            x = F.interpolate(x, size=teacher_spatial_size, mode='bilinear', align_corners=False)
+            x = F.interpolate(x, size=teacher_spatial_size, mode='bicubic', align_corners=False)
             
         return x
 
@@ -33,6 +33,16 @@ class DistillationModel(nn.Module):
         for param in self.teacher.parameters():
             param.requires_grad = False
             
+    def train(self, mode=True):
+        """
+        Override train mode to ensure teacher is ALWAYS in eval mode.
+        Even when the student is training, the teacher must remain in eval mode
+        to keep its BatchNorm statistics fixed.
+        """
+        super(DistillationModel, self).train(mode)
+        self.teacher.eval()
+        return self
+
     def forward(self, x):
         # Teacher forward (no grad)
         with torch.no_grad():
@@ -46,13 +56,12 @@ class DistillationModel(nn.Module):
         
         return student_output, projected_student_features, teacher_features
 
-def distillation_loss(student_output, target, projected_features, teacher_features, lambda_kd=100):
-    # 1. Task Loss (MSE between Student Output and Ground Truth)
-    task_loss = nn.MSELoss()(student_output, target)
+def distillation_loss(student_output, target, projected_features, teacher_features, lambda_kd=0.1):
+    # Task Loss (MSE between Student Output and Ground Truth)
+    task_loss = nn.MSELoss(reduction='sum')(student_output, target)
     
-    # 2. Distillation Loss (MSE between Projected Student Features and Teacher Features)
-    # Hint Learning: "Where to look"
+    # Distillation Loss (MSE between Projected Student Features and Teacher Features)
     dist_loss = nn.MSELoss()(projected_features, teacher_features)
     
-    total_loss = task_loss + lambda_kd * dist_loss
+    total_loss = (1 - lambda_kd) * task_loss + lambda_kd * dist_loss
     return total_loss, task_loss, dist_loss

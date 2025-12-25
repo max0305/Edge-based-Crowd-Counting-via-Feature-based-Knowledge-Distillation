@@ -6,23 +6,23 @@ import numpy as np
 import argparse
 from torchvision import transforms
 from models.teacher import CSRNet
+from models.student import CrowdResNet18
 from data.dataset import ShanghaiTechDataset
 from config import Config
 from utils.utils import denormalize, evaluate
 from utils.vis import visualize_prediction
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
-
-def predict(model_path=None, eval=False):
+def predict(model_path=None, eval=False, type=None):
     # 1. Setup Device
     device = torch.device(Config.DEVICE if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # 2. Load Model
-    model = CSRNet(load_weights=False).to(device)
-    
-    if model_path is None:
-        # Default to best teacher checkpoint
-        model_path = "./checkpoints/teacher_best.pth"
+    if type == 'teacher':
+        model = CSRNet(load_weights=False).to(device)
+    else:
+        model = CrowdResNet18().to(device)
     
     if os.path.exists(model_path):
         print(f"Loading model from {model_path}...")
@@ -100,18 +100,32 @@ if __name__ == "__main__":
     parser.add_argument('--model_path', type=str, default=None, help='Path to the trained model weights.')
     parser.add_argument('--teacher', action='store_true', help='Use teacher model')
     parser.add_argument('--student', action='store_true', help='Use student model')
+    parser.add_argument('--baseline', action='store_true', help='Use student baseline model')
     parser.add_argument('--eval', action='store_true', help='Evaluate on full test set')
     args = parser.parse_args()
 
     if args.model_path is not None:
-        print(f"Using model at {args.model_path} for prediction.")
-        predict(model_path=args.model_path, eval=args.eval)
+        if args.teacher:
+            print(f"Using teacher model at {args.model_path} for prediction.")
+            predict(model_path=args.model_path, eval=args.eval, type='teacher')
+        elif args.student:
+            print(f"Using student model at {args.model_path} for prediction.")
+            predict(model_path=args.model_path, eval=args.eval, type='student')
+        elif args.baseline:
+            print(f"Using student baseline model at {args.model_path} for prediction.")
+            predict(model_path=args.model_path, eval=args.eval, type='student_baseline')
+        else:
+            print("Please specify --teacher or --student to indicate model type.")
+            exit(1)
     elif args.teacher:
         print("Using teacher model for prediction.")
-        predict(model_path='./checkpoints/teacher_best.pth', eval=args.eval)
+        predict(model_path='./checkpoints/teacher_best.pth', eval=args.eval, type='teacher')
     elif args.student:
         print("Using student model for prediction.")
-        predict(model_path='./checkpoints/student_best.pth', eval=args.eval)
+        predict(model_path='./checkpoints/student_best.pth', eval=args.eval, type='student')
+    elif args.baseline:
+        print("Using student baseline model for prediction.")
+        predict(model_path='./checkpoints/student_baseline_best.pth', eval=args.eval, type='student_baseline')
     else:
         print("No model specified.")
         exit(1)

@@ -34,3 +34,11 @@ def evaluate(model, dataset, device):
     
     print(f"\nFull Test Set Results: MAE: {avg_mae:.2f} | MSE: {avg_mse:.2f}")
     print("-" * 50)
+
+def adjust_target_size(output, target):
+    if output.shape[2:] != target.shape[2:]:
+        ratio = (target.shape[2] * target.shape[3]) / (output.shape[2] * output.shape[3])
+        target = torch.nn.functional.interpolate(target, size=output.shape[2:], mode='bicubic', align_corners=False)
+        target = target * ratio
+        
+    return target

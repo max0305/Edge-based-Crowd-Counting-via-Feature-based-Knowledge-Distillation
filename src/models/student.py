@@ -1,68 +1,48 @@
 import torch
 import torch.nn as nn
-from torchvision import models
+from torchvision.models import resnet18, ResNet18_Weights
 
-class LiteDilatedHead(nn.Module):
-    """
-    Custom LiteDilatedHead: Replaces standard dilated convolutions with 
-    Depthwise Separable Convolutions + Dilation to reduce parameters.
-    """
-    def __init__(self, in_channels, out_channels, dilation_rates=[2, 2, 2, 2, 2, 2]):
-        super(LiteDilatedHead, self).__init__()
-        self.layers = nn.ModuleList()
+class CrowdResNet18(nn.Module):
+    def __init__(self):
+        super(CrowdResNet18, self).__init__()
+        # load pre-trained ResNet18
+        base = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
         
-        current_channels = in_channels
-        for rate in dilation_rates:
-            # Depthwise Separable Convolution with Dilation
-            # 1. Depthwise: groups=in_channels
-            dw = nn.Conv2d(current_channels, current_channels, kernel_size=3, 
-                           padding=rate, dilation=rate, groups=current_channels, bias=False)
-            # 2. Pointwise: kernel_size=1
-            pw = nn.Conv2d(current_channels, out_channels, kernel_size=1, bias=False)
-            
-            block = nn.Sequential(
-                dw,
-                nn.BatchNorm2d(current_channels),
-                nn.ReLU(inplace=True),
-                pw,
-                nn.BatchNorm2d(out_channels),
-                nn.ReLU(inplace=True)
-            )
-            self.layers.append(block)
-            current_channels = out_channels # Update for next layer if needed
-            
-        # Final 1x1 conv to generate density map (1 channel)
-        self.output_layer = nn.Conv2d(out_channels, 1, kernel_size=1)
+        # Extract layers up to layer3 and modify strides for higher resolution
+        # we modify the strides of layer3 to keep feature map at 1/8 size
+        
+        self.frontend = nn.Sequential(
+            base.conv1, base.bn1, base.relu, base.maxpool,
+            base.layer1, # 1/4
+            base.layer2, # 1/8
+            base.layer3,  # 1/16
+        )
+        
+        # Make layer3 stride 1 to keep 1/8 resolution
+        self.frontend[6][0].conv1.stride = (1, 1)
+        self.frontend[6][0].downsample[0].stride = (1, 1)
 
-    def forward(self, x):
-        for layer in self.layers:
-            x = layer(x)
-        x = self.output_layer(x)
-        return x
-
-class MobileCSRNet(nn.Module):
-    def __init__(self, pretrained=True):
-        super(MobileCSRNet, self).__init__()
-        # Backbone: MobileNetV2
-        # We take features until a certain stage. 
-        # MobileNetV2 features usually have 32, 16, 24, 32, 64, 96, 160, 320 channels at different stages.
-        # Let's assume we take the output with 96 channels (approx 1/16 or 1/8 resolution).
-        mobilenet = models.mobilenet_v2(pretrained=pretrained)
-        self.frontend = mobilenet.features[:14] # Adjust index based on desired feature map size/channels
+        # Backend to generate density map
+        # Layer3 output has 256 channels
+        self.backend = nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=3, padding=2, dilation=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 128, kernel_size=3, padding=2, dilation=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 64, kernel_size=3, padding=2, dilation=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 1, kernel_size=1) # density map output
+        )
         
-        # Backend: LiteDilatedHead
-        # Assuming input channels from frontend is 96
-        self.backend = LiteDilatedHead(in_channels=96, out_channels=96)
-        
-        self._initialize_weights()
+        self._init_weights()
 
     def forward(self, x):
         features = self.frontend(x)
-        density_map = self.backend(features)
-        return density_map, features # Return features for distillation
+        out = self.backend(features)
+        return out, features
 
-    def _initialize_weights(self):
-        for m in self.modules():
+    def _init_weights(self):
+        for m in self.backend.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, std=0.01)
                 if m.bias is not None:

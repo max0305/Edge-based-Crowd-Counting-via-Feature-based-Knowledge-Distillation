@@ -5,3 +5,4 @@ shanghaitech_with_people_density_map/
 *.png
 checkpoints/
 exp/
+src/models/student_org.py
